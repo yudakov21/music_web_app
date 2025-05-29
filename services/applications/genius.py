@@ -1,4 +1,6 @@
+import re
 import aiohttp
+
 from fastapi import HTTPException
 from bs4 import BeautifulSoup
 from schemas.service_schemas import GeniusArtist
@@ -28,30 +30,32 @@ class GeniusAPI:
                     raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
-            hits = data.get("response", {}).get("hits",[])
+        hits = data.get("response", {}).get("hits", [])
+        target_name = artist_name.strip().lower()
 
-            # 1)  Trying to find where type == "artist" and the name matches
-            for hit in hits:
-                if hit["type"] == "artist":
-                    result = hit["result"] # an artist
-                    name_lower = result["name"].lower().strip()
-                    if name_lower == artist_name.lower().strip():
-                        if not self.featured_artist(result["name"]):
-                            return result["id"]
+        def is_valid_artist(name: str) -> bool:
+            return name.strip().lower() == target_name and not self.featured_artist(name)
 
-            # 2) If there's no "artist", look for "song".
-            for hit in hits:
-                if hit["type"] == "song":
-                    result = hit["result"]
-                    primary_result = result["primary_artist"]
+        # first search for type == "artist"
+        for hit in hits:
+            if hit.get("type") == "artist":
+                name = hit["result"]["name"]
+                if is_valid_artist(name):
+                    return hit["result"]["id"]
 
-                    if not result["featured_artists"]:
-                        primary_name = primary_result["name"].strip()
-                        if not self.featured_artist(primary_name):
-                            if primary_name.lower() == artist_name.lower():
-                                return primary_result["id"]
+        # then, search among the songs
+        for hit in hits:
+            if hit.get("type") == "song":
+                result = hit["result"]
+                if result.get("featured_artists"):
+                    continue
 
-            raise Exception("Cannot find a suitable artist in hits")
+                primary_artist = result.get("primary_artist", {})
+                name = primary_artist.get("name", "")
+                if is_valid_artist(name):
+                    return primary_artist["id"]
+
+        raise Exception("The artist name is incorrect or there is no such artist on Genius :(")
             
     async def get_artist(self, artist_id: int) -> GeniusArtist:       
         async with aiohttp.ClientSession() as session:
@@ -61,11 +65,11 @@ class GeniusAPI:
                     raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
-                artist_dict: dict = data["response"]["artist"]
-                if artist_dict["image_url"].startswith("https://assets.genius.com/images/default_avatar"):
-                    raise Exception("Artist has default avatar")
-                artist = GeniusArtist(**artist_dict)
-                return artist
+        artist_dict: dict = data["response"]["artist"]
+        if artist_dict["image_url"].startswith("https://assets.genius.com/images/default_avatar"):
+            raise Exception("Artist has default avatar")
+        artist = GeniusArtist(**artist_dict)
+        return artist
         
     async def get_artist_song(self, artist_name: str, track_title: str):
         async with aiohttp.ClientSession() as session:
@@ -78,12 +82,12 @@ class GeniusAPI:
                     raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
-            hits = data.get("response", {}).get("hits",[])
-            
-            for hit in hits:
-                if hit["type"] == "song":
-                    return hit["result"]["url"]
-            return None
+        hits = data.get("response", {}).get("hits",[])
+        
+        for hit in hits:
+            if hit["type"] == "song":
+                return hit["result"]["url"]
+        return None
 
 
 class GeniusParser:
@@ -91,21 +95,33 @@ class GeniusParser:
         async with aiohttp.ClientSession() as session:
             links = []
             async with session.get(artist_page_url) as response:
-                soup = BeautifulSoup(await response.text(), 'lxml')
-                for track in soup.find_all(class_="mini_card_grid-song"):
-                    link = track.find(class_="mini_card", href=True)
-                    links.append(link.get('href'))
-            return links
+                html = await response.text()
+        soup = BeautifulSoup(html, 'lxml')
+        for track in soup.find_all(class_="mini_card_grid-song"):
+            link = track.find(class_="mini_card", href=True)
+            links.append(link.get('href'))
+        return links
 
     async def get_songs_text(self, track_url: str)-> list[str]:
         async with aiohttp.ClientSession() as session:
-
             async with session.get(track_url) as response:
-                soup = BeautifulSoup(await response.text(), 'lxml')
-                lyrics_div = soup.find(class_="Lyrics-sc-1bcc94c6-1 bzTABU")
-                if not lyrics_div:
-                    return None
-                lyrics = lyrics_div.get_text(separator="\n").strip()
-                return lyrics
+                html = await response.text()
+        soup = BeautifulSoup(html, 'lxml') 
+        lyrics_div = soup.find_all('div', attrs={"class": re.compile(r"^Lyrics__Container-sc-")}) # Lyrics-sc-7c7d0940-1 gVRfzh 
+        
+        if not lyrics_div:
+            return None
+        
+        full_text = "\n".join(div.get_text(separator="\n").strip() for div in lyrics_div)
+
+        start_keywords = ["[Intro", "[Verse", "[Chorus", "[Bridge", "[Outro", "[Refrain", 
+                            "[Post-Chorus", "[Pre-Chorus", "[Breakdown", "[Interlude:", "[Skit:"]
+        for keyword in start_keywords:
+            idx = full_text.find(keyword)
+            if idx != -1:
+                full_text = full_text[idx:]
+                break
+
+        return full_text
 
 

@@ -3,12 +3,10 @@ import os
 import base64
 import time
 import random
-from bs4 import BeautifulSoup
 import cloudscraper
 
+from bs4 import BeautifulSoup
 from schemas.service_schemas import SpotifyArtist, SpotifyTrack, SpotifyTrackDetails
-from services.applications.genius import GeniusAPI, GeniusParser
-
 
 
 scraper = cloudscraper.create_scraper()
@@ -20,19 +18,16 @@ headers = {
 
 
 class SpotifyAPI:
-    def __init__(self, access_token: str, client_id:str, client_secret: str, genius: GeniusAPI, genius_parser: GeniusParser) -> None:
+    def __init__(self, access_token: str, client_id:str, client_secret: str) -> None:
         self._token = access_token
         self.client_id = client_id
         self.client_secret = client_secret
-        self.genius = genius
-        self.genius_parser = genius_parser
         self.dheaders = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type" : "application/x-www-form-urlencoded"
         }
 
     async def refresh_token(self):
-        # Form Basic auth from client_id and client_secret
         auth_base64 = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
         
         url = f"https://accounts.spotify.com/api/token"
@@ -40,6 +35,7 @@ class SpotifyAPI:
             "Content-Type": "application/x-www-form-urlencoded",
             "Authorization": f"Basic {auth_base64}"
         }
+
 
         data = {
             "grant_type": "refresh_token",
@@ -49,7 +45,6 @@ class SpotifyAPI:
         async with aiohttp.ClientSession() as session:
             async with session.post(url=url, data=data, headers=headers) as response:
                 resp_text = await response.json()
-
 
                 self._token = resp_text["access_token"]
                 self.dheaders["Authorization"] = f"Bearer {self._token}"
@@ -63,71 +58,111 @@ class SpotifyAPI:
             }
             async with session.get(url=url, headers=self.dheaders, params=params) as response:
                 data = await response.json()
-                try:
-                    artists = data["artists"]
-                except KeyError:
-                    await self.refresh_token()
-                    return await self.get_artist_id(artist_name)
-                first_artist_id = artists['items'][0]['id']
-                return first_artist_id
-
+                
+        try:
+            artists = data["artists"]
+        except KeyError:
+            await self.refresh_token()
+            return await self.get_artist_id(artist_name)
+        first_artist_id = artists['items'][0]['id']
+        return first_artist_id
+            
     async def get_artist(self, artist_id: int):
         async with aiohttp.ClientSession() as session:
             url = f"https://api.spotify.com/v1/artists/{artist_id}"
             async with session.get(url=url, headers=self.dheaders) as response:
                 data = await response.json()
-                try:
-                    artist = SpotifyArtist(
-                        name=data["name"],
-                        genres=data["genres"],
-                        followers_count=data["followers"]["total"],
-                        avatar_photo=data["images"][0]["url"],
-                        popularity=data["popularity"]
-                    )
-                    return artist
-                except Exception as e:
-                    raise Exception()
+
+        try:
+            artist = SpotifyArtist(
+                name=data["name"],
+                genres=data["genres"],
+                followers_count=data["followers"]["total"],
+                avatar_photo=data["images"][0]["url"],
+                popularity=data["popularity"]
+            )
+            return artist
+        except Exception as e:
+            raise Exception (f"Error while searching for an artist: {e}")       
+                
+    async def get_track_id(self, artist_name:str, title: str) -> str:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.spotify.com/v1/search"
+            params = {
+                'q': f"{artist_name} {title}",
+                'type': "track",
+                'limit': 1
+            }
+            async with session.get(url=url, headers=self.dheaders, params=params) as response:
+                if response.status == 401:  # If the token has expired, refresh it
+                    await self.refresh_token()
+                    return await self.get_track_id(artist_name, title)
+                
+                if response.status != 200:
+                    error_data = await response.text()  # Get the error message
+                    raise Exception(f"Spotify API error: {response.status}, response: {error_data}")
+                data = await response.json()
+
+        tracks = data.get("tracks", {}).get("items", [])
+        track_id = tracks[0]["id"]
+        return track_id
     
+    async def get_current_track(self, artist_name:str, title: str):
+        try:
+            track_id = await self.get_track_id(artist_name, title)
+
+            if not track_id:
+                raise Exception(f"Failed to get track_id for '{title}' artist '{artist_name}'")
+        except Exception as e:
+            raise Exception(f"Error while searching for track_id: {str(e)}")
+
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.spotify.com/v1/tracks/{track_id}"
+            async with session.get(url=url, headers=self.dheaders) as response:
+                if response.status != 200:
+                    raise Exception(f"Spotify API request error (get_current_track): HTTP {response.status}")
+
+                data = await response.json()
+
+        try:
+            track = SpotifyTrack(
+                spotify_song_id=data["id"],
+                artists= ", ".join(artist["name"] for artist in data["artists"]),
+                title=data["name"],
+                release_date=data["album"]["release_date"],
+                cover_url=data["album"]["images"][0]["url"],
+                preview_url=data["preview_url"],
+            )
+            return track
+        except KeyError as e:
+            raise Exception(f"Error processing track data: missing key {str(e)}")
+
     async def get_artist_top_tracks(self, artist_id: str) -> list[SpotifyTrack]:
-        start_time = time.perf_counter() 
         async with aiohttp.ClientSession() as session:
             url = f"https://api.spotify.com/v1/artists/{artist_id}/top-tracks?market=ES"
             async with session.get(url=url, headers=self.dheaders) as response:
                 data = await response.json(content_type=None)
 
-                # If there is no "tracks" key, we need to catch the error
-                tracks = data.get("tracks", [])
+        tracks = data.get("tracks", [])
 
-                tracks_items: list[SpotifyTrack] = []
-                for track in tracks[:10]:
+        tracks_items: list[SpotifyTrack] = []
+        for track in tracks[:10]:
 
-                    artist_names = ", ".join(artist["name"] for artist in track["artists"])
+            artist_names = ", ".join(artist["name"] for artist in track["artists"])
 
-                    track_obj = SpotifyTrack(
-                        spotify_song_id=track["id"],
-                        artist=artist_names,
-                        title=track["name"],
-                        release_date=track["album"]["release_date"],
-                        cover_url=track["album"]["images"][0]["url"],
-                        preview_url=track["preview_url"],
-                    ) 
-                    tracks_items.append(track_obj)
+            track_obj = SpotifyTrack(
+                spotify_song_id=track["id"],
+                artists=artist_names,
+                title=track["name"],
+                release_date=track["album"]["release_date"],
+                cover_url=track["album"]["images"][0]["url"],
+                preview_url=track["preview_url"],
+            ) 
+            tracks_items.append(track_obj)
 
-                end_time = time.perf_counter() 
-                print(f"Execution time: {end_time - start_time:.2f} seconds")
-                return tracks_items
+        return tracks_items
     
-            
-    async def get_track_details(
-        self, 
-        track_id: str, 
-    ) -> SpotifyTrackDetails | None:
-        """
-        Here we're off to Tunebat, not Spotify's audio-features
-        track_name: 'Gods plan'
-        artist_name: 'Drake'
-        track_id: '788Sc88rcfsfdsf'
-        """
+    async def get_track_details(self, track_id: str) -> SpotifyTrackDetails | None:
 
         url = f"https://tunebat.com/Info/-/{track_id}"
 
@@ -156,13 +191,11 @@ class SpotifyAPI:
                     danceability=danceability,
                     happiness=happiness
                 )
-                print(f"Data were successfully obtained for {url}")
-                time.sleep(random.uniform(1, 6))
+                time.sleep(random.uniform(1, 2))
                 return track_details
             else:
                 print(f"[Tunebat] status={response.status_code} url={url}")
-                    
         except Exception as e:
             print(f"An error occurred at the URL {url}: {e}")
         finally:
-            print("Data collection is complete")
+            print("Data collection is complete.")
