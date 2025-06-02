@@ -1,9 +1,10 @@
+import json
 import asyncio 
-
 from datetime import datetime, timedelta
 from services.applications.spotify import SpotifyAPI
 from services.applications.genius import GeniusAPI, GeniusParser
 from schemas.service_schemas import AllStats, SpotifyTrack
+
 from db_manager import DatabaseManager
 
 
@@ -23,40 +24,48 @@ class ArtistController:
 
     async def get_artist(self, artist_name: str) -> AllStats:
         genius_id = self.genius.get_artist_id(artist_name)
-        spotify_id = self.spotify.get_artist_id(artist_name)
-
-        spotify_artist_id, genius_artist_id = await asyncio.gather(spotify_id, genius_id)
-
+        genius_artist_id = await asyncio.create_task(genius_id)
+        
         artist_ = await self.manager.get_artist(genius_artist_id)
-        if artist_:
-            data = AllStats.parse_raw(self.process_json(artist_.json))
-            print(artist_.json)
-            return data
+        tracks = await self.manager.get_tracks(genius_artist_id)
+
+        if artist_ and tracks:
+            artist_data = json.loads(self.process_json(artist_.json))
+            spotify_tracks= [SpotifyTrack(**track._asdict()).model_dump() for track in tracks]
+        
+            all_stats = AllStats(
+                genius=artist_data["genius"],
+                spotify=artist_data["spotify"],
+                spotify_tracks=spotify_tracks,
+                most_popular_words=None
+            )
+            return all_stats.model_dump_json()
+        
+        spotify_id = self.spotify.get_artist_id(artist_name)
+        spotify_artist_id = await asyncio.create_task(spotify_id)       
 
         spotify_artist = await self.spotify.get_artist(spotify_artist_id)
         genius_artist = await self.genius.get_artist(genius_artist_id)
 
-        track_links = await self.genius_parser.get_track_links(genius_artist.url)
-
-        tracks_text = [self.genius_parser.get_songs_text(track_link) for track_link in track_links]
-
-        stats = [
-            self.spotify.get_artist_top_tracks(spotify_artist_id),
-            *tracks_text
-        ]
-        stats_result = await asyncio.gather(*stats)
+        spotify_tracks = await self.spotify.get_artist_top_tracks(spotify_artist_id)
 
         most_popular_words = None
 
         all_stats = AllStats(
             genius=genius_artist,
             spotify=spotify_artist,
-            spotify_tracks=stats_result[0],
+            spotify_tracks=spotify_tracks,
             most_popular_words=most_popular_words
         )
 
-        await self.manager.add_artist(genius_id=all_stats.genius.id,
-        json=str(all_stats.model_dump_json()))
+        data = {
+            "genius": genius_artist.model_dump(),
+            "spotify": spotify_artist.model_dump()
+        }
+
+        await self.manager.add_artist(genius_id=all_stats.genius.id, json=json.dumps(data, ensure_ascii=False))
+        await self.manager.add_tracks(artist_id=all_stats.genius.id, tracks=spotify_tracks)
+
         return all_stats.model_dump_json()
     
 
@@ -68,23 +77,63 @@ class TrackController:
         self.genius_parser = genius_parser
         self.manager = manager
     
-    async def track_with_lyrics(self, spotify_song_id: str, track: SpotifyTrack):
-        track_details = await self.spotify.get_track_details(spotify_song_id)
-        if not track_details:
-            raise Exception(f"Failed to retrieve details for track with ID {spotify_song_id}")
+    async def get_track(self, artist_name:str, title: str):
+        spotify_song_id = await self.spotify.get_track_id(artist_name, title)
 
-        track_url = await self.genius.get_artist_song(track.artist, track.title)
-        if track_url:
-            lyrics = await self.genius_parser.get_songs_text(track_url) 
-        else:
-            lyrics = None
+        current_track = await self.spotify.get_current_track(artist_name, title)
         
-        await self.manager.add_track_details(spotify_song_id)
-        if lyrics:
-            await self.manager.add_lyrics(spotify_song_id, lyrics)
+        track = current_track.model_dump_json()
+        
+        track_details = await self.spotify.get_track_details(spotify_song_id)
+        
+        track_url = await self.genius.get_artist_song(artist_name, title)
 
-        return {
-            "spotify_song_id": spotify_song_id,
+        lyrics = await self.genius_parser.get_songs_text(track_url)
+
+        data = {
+            "track": track,
             "details": track_details,
             "lyrics": lyrics
         }
+        return data
+
+
+    async def get_track_with_data(self, spotify_song_id: str):
+        track = await self.manager.get_one_track(spotify_song_id)
+        track_ = track._asdict()
+
+        track_details = await self.manager.get_track_details(spotify_song_id)
+        lyrics = await self.manager.get_lyrics(spotify_song_id)
+        
+        if track_details and lyrics:
+            data = {
+                "track": track_,
+                "details": track_details._asdict(),
+                "lyrics": lyrics._asdict()
+            }
+            return data
+
+        artists = track_.get("artists")
+        title = track_.get("title")
+
+        if not artists or not title:
+            raise Exception(f"The track does not contain 'artists' or 'title': {track_}")
+
+        track_details = await self.spotify.get_track_details(spotify_song_id)
+        if not track_details:
+            raise Exception(f"Failed to retrieve track details for ID {spotify_song_id}")
+
+        track_url = await self.genius.get_artist_song(artists, title)
+        print(track_url)
+
+        lyrics = await self.genius_parser.get_songs_text(track_url) 
+
+        await self.manager.add_track_details(spotify_song_id, details=track_details)
+        await self.manager.add_lyrics(spotify_song_id, lyrics)
+
+        data = {
+            "track": track_,
+            "details": track_details,
+            "lyrics": lyrics
+        }
+        return data
