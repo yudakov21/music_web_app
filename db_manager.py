@@ -22,16 +22,32 @@ class DatabaseManager:
         return artist_record._mapping if artist_record else None
     
 
-    async def get_tracks(self, artist_id: int):
-        query = select(track).where(track.c.artist_id == artist_id)
-        res = await self.session.execute(query)
-        return res.fetchall()
-    
-    async def get_one_track(self, artist_id: int):
-        query = select(track).where(track.c.artist_id == artist_id)
-        res = await self.session.execute(query)
-        return res.fetchone()
-    
+    async def add_tracks(self, artist_id: int, tracks: list[SpotifyTrack]):
+        track_ids = [track_.spotify_song_id for track_ in tracks]
+
+        query = select(track.c.spotify_song_id).where(track.c.spotify_song_id.in_(track_ids))
+        result = await self.session.execute(query)
+        existing_ids = {row[0] for row in result.fetchall()}
+
+        new_tracks = [
+            {
+                "artist_id": artist_id,
+                "spotify_song_id": track_.spotify_song_id,
+                "artists": track_.artists,
+                "title": track_.title,
+                "release_date": track_.release_date,
+                "cover_url": track_.cover_url,
+                "preview_url": track_.preview_url
+            }
+            for track_ in tracks if track_.spotify_song_id not in existing_ids
+        ]
+
+        if new_tracks:
+            stmt = insert(track)
+            await self.session.execute(stmt, new_tracks)
+            await self.session.commit()
+
+
     async def add_track(self, artist_id: int, track: SpotifyTrack):
         stmt = insert(track).values(
             artist_id = artist_id,
@@ -39,6 +55,16 @@ class DatabaseManager:
         )
         await self.session.execute(stmt)
         await self.session.commit()
+
+    async def get_tracks(self, artist_id: int):
+        query = select(track).where(track.c.artist_id == artist_id)
+        res = await self.session.execute(query)
+        return res.fetchall()
+    
+    async def get_one_track(self, track_id: str):
+        query = select(track).where(track.c.spotify_song_id == track_id)
+        res = await self.session.execute(query)
+        return res.fetchone()
 
 
     async def add_track_details(self, track_id: int, details: SpotifyTrackDetails):
