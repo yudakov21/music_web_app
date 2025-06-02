@@ -31,7 +31,7 @@ class SpotifyTrackDetails(BaseModel):
 
 class SpotifyTrack(BaseModel):
     spotify_song_id: str | None
-    artist: str
+    artists: str
     title: str 
     release_date: date
     cover_url: str 
@@ -50,4 +50,5 @@ class Search(BaseModel):
     artist_name: str | None
 
 class SearchSong(BaseModel):
-    song_name: str | None
+    artist_name: str | None
+    title: str | None
