@@ -75,7 +75,7 @@ async def get_artist_search(search: Search, artist_controller: ArtistController 
 async def get_track_search(search: SearchSong, track_controller: TrackController = Depends(get_track_controller)):
     start_time = time.perf_counter() 
     try:
-        track = await track_controller.get_track(search.artist_name, search.title)
+        track = await track_controller.get_track_data_without_saving(search.artist_name, search.title)
         end_time = time.perf_counter()  
         print(f"Time: {end_time - start_time:.2f} seconds")
     except Exception as e:
@@ -83,7 +83,7 @@ async def get_track_search(search: SearchSong, track_controller: TrackController
     return track
 
 @app.get("/{spotify_song_id}")
-async def get_lyrics(spotify_song_id: str, track_controller: TrackController = Depends(get_track_controller)):
+async def get_track_with_data(spotify_song_id: str, track_controller: TrackController = Depends(get_track_controller)):
     start_time = time.perf_counter()
     try:
         data = await track_controller.get_track_with_data(spotify_song_id)
@@ -92,3 +92,4 @@ async def get_lyrics(spotify_song_id: str, track_controller: TrackController = D
     except Exception as e:
         return {"error": str(e)}
     return data
+

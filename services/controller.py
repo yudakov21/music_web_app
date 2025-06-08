@@ -76,27 +76,6 @@ class TrackController:
         self.spotify = spotify
         self.genius_parser = genius_parser
         self.manager = manager
-    
-    async def get_track(self, artist_name:str, title: str):
-        spotify_song_id = await self.spotify.get_track_id(artist_name, title)
-
-        current_track = await self.spotify.get_current_track(artist_name, title)
-        
-        track = current_track.model_dump_json()
-        
-        track_details = await self.spotify.get_track_details(spotify_song_id)
-        
-        track_url = await self.genius.get_artist_song(artist_name, title)
-
-        lyrics = await self.genius_parser.get_songs_text(track_url)
-
-        data = {
-            "track": track,
-            "details": track_details,
-            "lyrics": lyrics
-        }
-        return data
-
 
     async def get_track_with_data(self, spotify_song_id: str):
         track = await self.manager.get_one_track(spotify_song_id)
@@ -133,6 +112,26 @@ class TrackController:
 
         data = {
             "track": track_,
+            "details": track_details,
+            "lyrics": lyrics
+        }
+        return data
+
+    async def get_track_data_without_saving(self, artist_name:str, title: str):
+        spotify_song_id = await self.spotify.get_track_id(artist_name, title)
+
+        current_track = await self.spotify.get_current_track(artist_name, title)
+        
+        track = current_track.model_dump_json()
+        
+        track_details = await self.spotify.get_track_details(spotify_song_id)
+        
+        track_url = await self.genius.get_artist_song(artist_name, title)
+
+        lyrics = await self.genius_parser.get_songs_text(track_url)
+
+        data = {
+            "track": track,
             "details": track_details,
             "lyrics": lyrics
         }
