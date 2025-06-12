@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import date
+from typing import List, Dict, Optional
 
 class GeniusArtist(BaseModel):
     id: int
@@ -40,11 +41,13 @@ class SpotifyTrack(BaseModel):
 class Lyrics(BaseModel):
     text: str | None
 
+
 class AllStats(BaseModel):
     genius: GeniusArtist
     spotify: SpotifyArtist
     spotify_tracks: list[SpotifyTrack]
     most_popular_words: list[str] | None
+
 
 class Search(BaseModel):
     artist_name: str | None
@@ -52,3 +55,13 @@ class Search(BaseModel):
 class SearchSong(BaseModel):
     artist_name: str | None
     title: str | None
+
+
+class Translation(BaseModel):
+    text: str
+    level: str
+    language: str
+
+class ChatMessage(BaseModel):
+    message: str
+    history: List[Dict[str,str]] = []

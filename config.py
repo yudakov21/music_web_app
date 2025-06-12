@@ -15,3 +15,5 @@ GENIUS_ACCESS = os.environ.get("GENIUS_ACCESS")
 SPOTIFY_ACCESS = os.environ.get("SPOTIFY_ACCESS")
 SPOTIFY_ID = os.environ.get("SPOTIFY_ID")
 SPOTIFY_SECRET = os.environ.get("SPOTIFY_SECRET")
+
+OPENAI_API_TOKEN = os.environ.get("OPENAI_API_TOKEN")
