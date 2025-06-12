@@ -1,6 +1,6 @@
 from models.models import artist, track, track_details, lyrics
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, insert
+from sqlalchemy import select, insert, update
 from schemas.service_schemas import SpotifyTrack, SpotifyTrackDetails
 
 class DatabaseManager:
@@ -47,7 +47,6 @@ class DatabaseManager:
             await self.session.execute(stmt, new_tracks)
             await self.session.commit()
 
-
     async def add_track(self, artist_id: int, track: SpotifyTrack):
         stmt = insert(track).values(
             artist_id = artist_id,
@@ -56,40 +55,39 @@ class DatabaseManager:
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def get_tracks(self, artist_id: int):
-        query = select(track).where(track.c.artist_id == artist_id)
-        res = await self.session.execute(query)
-        return res.fetchall()
-    
-    async def get_one_track(self, track_id: str):
-        query = select(track).where(track.c.spotify_song_id == track_id)
-        res = await self.session.execute(query)
-        return res.fetchone()
 
-
-    async def add_track_details(self, track_id: int, details: SpotifyTrackDetails):
+    async def add_track_details(self, spotify_song_id: str, details: SpotifyTrackDetails):
         stmt = insert(track_details).values(
-            track_id=track_id,
+            spotify_song_id=spotify_song_id,
             **details.model_dump()
         )
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def get_track_details(self, track_id: int):
-        query = select(track_details).where(track_details.c.track_id == track_id)
+    async def get_track_details(self, track_id: str):
+        query = select(track_details).where(track_details.c.spotify_song_id == track_id)
         res = await self.session.execute(query)
         return res.fetchone()
     
 
-    async def add_lyrics(self, track_id: int, lyrics_text: str):
+    async def add_lyrics(self, track_id: str, lyrics_text: str):
         stmt = insert(lyrics).values(
-            track_id=track_id,
+            spotify_song_id=track_id,
             text=lyrics_text
         )
         await self.session.execute(stmt)
         await self.session.commit()
 
-    async def get_lyrics(self, track_id: int):
-        query = select(lyrics).where(lyrics.c.track_id == track_id)
+    async def update_lyrics(self, track_id: str, lyrics_text: str):
+        stmt = update(lyrics).where(lyrics.c.spotify_song_id == track_id).values(text = lyrics_text)
+        await self.session.execute(stmt)
+        await self.session.commit()
+
+    async def get_lyrics(self, track_id: str):
+        query = select(lyrics).where(lyrics.c.spotify_song_id == track_id)
         res = await self.session.execute(query)
         return res.fetchone()
+    
+    
+
+    
