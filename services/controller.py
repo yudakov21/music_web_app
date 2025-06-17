@@ -1,10 +1,14 @@
 import json
 import asyncio 
+
 from datetime import datetime, timedelta
+from redis import Redis
+from hashlib import sha256
+from fastapi import HTTPException
+from services.applications.openai import OpenAIClient
 from services.applications.spotify import SpotifyAPI
 from services.applications.genius import GeniusAPI, GeniusParser
 from schemas.service_schemas import AllStats, SpotifyTrack
-
 from db_manager import DatabaseManager
 
 
@@ -136,3 +140,48 @@ class TrackController:
             "lyrics": lyrics
         }
         return data
+    
+
+class TranslatorController:
+    def __init__(self, openai_client: OpenAIClient, redis_client: Redis):
+        self.openai_client = openai_client
+        self.redis_client = redis_client
+        
+    async def get_text_translation(self, text: str, language: str, level: str):
+        text_hash = sha256(text.strip().lower().encode()).hexdigest()
+        cache_key = f"result:{text_hash}:{language}:{level}"
+
+        cache_data = await self.redis_client.get(cache_key)
+        if cache_data is not None:
+            try:
+                return json.loads(cache_data)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding cached data: {e}")
+                # Delete corrupted data from the cache
+                await self.redis_client.delete(cache_key)
+
+        try:
+            result = self.openai_client.analyze_text(
+                text=text, 
+                level=level,
+                language=language
+            )
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        await self.redis_client.set(cache_key, json.dumps(result), ex=3600)
+
+        return result
+
+class ChatController:
+    def __init__(self, openai_client: OpenAIClient):
+        self.openai_client = openai_client
+
+    def get_chat(self, message:str, history: list):
+        try:
+            result = self.openai_client.chat(
+                message=message, history=history)
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return result
+    

@@ -5,12 +5,14 @@ from fastapi import Depends
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from redis.asyncio import Redis
 from user_auth.base_config import fastapi_users, auth_backend
-from services.controller import ArtistController, TrackController
+from services.controller import ArtistController, TrackController, TranslatorController, ChatController
 from services.applications.genius import GeniusAPI, GeniusParser
 from services.applications.spotify import SpotifyAPI
+from services.applications.openai import OpenAIClient
 from schemas.user_schemas import UserCreate, UserRead
-from schemas.service_schemas import Search, SearchSong
+from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage
 from db_manager import DatabaseManager
 from database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,6 +61,18 @@ async def get_track_controller(manager: DatabaseManager = Depends(get_db_manager
 
     return TrackController(genius=genius,genius_parser=genius_parser,spotify=spotify,manager=manager)
 
+async def get_redis_client() -> Redis:
+    redis_client = Redis(host=config.REDIS_HOST, port=config.REDIS_HOST, encoding="utf-8", decode_responses=True)
+    return redis_client
+
+async def get_translator_controller(redis_client: Redis = Depends(get_redis_client)):
+    openai_client = OpenAIClient(config.OPENAI_API_TOKEN)
+    return TranslatorController(openai_client=openai_client, redis_client=redis_client)
+
+async def get_chat_controller():
+    openai_client = OpenAIClient(config.OPENAI_API_TOKEN)
+    return ChatController(openai_client=openai_client)
+
 
 @app.post("/")
 async def get_artist_search(search: Search, artist_controller: ArtistController = Depends(get_artist_controller)):
@@ -93,3 +107,20 @@ async def get_track_with_data(spotify_song_id: str, track_controller: TrackContr
         return {"error": str(e)}
     return data
 
+
+@app.post("/translation/")
+async def get_translation(translation: Translation,
+                    translator_controller: TranslatorController = Depends(get_translator_controller)):
+    try:
+        data = await translator_controller.get_text_translation(translation.text, translation.language, translation.level)
+    except Exception as e:
+        return {"error": str(e)}
+    return data
+
+@app.post("/chat/")
+async def chat_with_gpt(chat_message: ChatMessage, chat_controller: ChatController = Depends(get_chat_controller)):
+    try:
+        data = chat_controller.get_chat(message=chat_message.message, history=chat_message.history)
+    except Exception as e:
+        return {"error": str(e)}    
+    return data
