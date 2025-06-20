@@ -12,7 +12,7 @@ from services.applications.genius import GeniusAPI, GeniusParser
 from services.applications.spotify import SpotifyAPI
 from services.applications.openai import OpenAIClient
 from schemas.user_schemas import UserCreate, UserRead
-from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage
+from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage, LyricsUpdateRequest
 from db_manager import DatabaseManager
 from database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -124,3 +124,21 @@ async def chat_with_gpt(chat_message: ChatMessage, chat_controller: ChatControll
     except Exception as e:
         return {"error": str(e)}    
     return data
+
+
+@app.post("/update_lyrics/")
+async def update_lyrics(data: LyricsUpdateRequest, manager: DatabaseManager = Depends(get_db_manager)):
+    try:
+        await manager.update_lyrics(data.id, data.lyrics)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/related_artists/{artist_id}")
+async def get_related_artists(artist_id: int, manager: DatabaseManager = Depends(get_db_manager)):
+    try:
+        artists = await manager.get_artist_by_genres(artist_id=artist_id)
+        return {"success": True, "artists": artists }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    

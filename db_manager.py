@@ -1,3 +1,5 @@
+import json
+
 from models.models import artist, track, track_details, lyrics
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update
@@ -89,5 +91,29 @@ class DatabaseManager:
         return res.fetchone()
     
     
+    async def get_artist_by_genres(self, artist_id: int):
+        base_artist_row = await self.get_artist(artist_id)
 
+        if not base_artist_row:
+            return []
+        
+        base_json = base_artist_row['json']
+        base_genres = json.loads(base_json)['spotify'].get('genres', [])
+
+        if not base_genres:
+            return []
+        
+        query = select(artist).where(artist.c.genius_id != artist_id)
+        res = await self.session.execute(query)
+        rows = res.fetchall()
+        
+        similar = []
+
+        for row in rows:
+            data = json.loads(row._mapping['json'])
+            other_genres = data.get('spotify', {}).get('genres', [])
+            
+            if set(base_genres) & set(other_genres):
+                similar.append(row._mapping)
+        return similar
     

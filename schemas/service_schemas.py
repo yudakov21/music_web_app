@@ -65,3 +65,8 @@ class Translation(BaseModel):
 class ChatMessage(BaseModel):
     message: str
     history: List[Dict[str,str]] = []
+
+class LyricsUpdateRequest(BaseModel):
+    id: str
+    lyrics: str
+
