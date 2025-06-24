@@ -13,6 +13,7 @@ from services.applications.spotify import SpotifyAPI
 from services.applications.openai import OpenAIClient
 from schemas.user_schemas import UserCreate, UserRead
 from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage, LyricsUpdateRequest
+from models.models import User
 from db_manager import DatabaseManager
 from database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,3 +143,45 @@ async def get_related_artists(artist_id: int, manager: DatabaseManager = Depends
     except Exception as e:
         return {"success": False, "error": str(e)}
     
+
+@app.post("/like_track/{track_id}")
+async def like_track_endpoint(track_id: str, user: User = Depends(fastapi_users.current_user()), 
+                              manager: DatabaseManager = Depends(get_db_manager)):
+    await manager.like_track(user_id=user.id, track_id=track_id)
+    return {"success": True}
+
+@app.post("/like_artist/{artist_id}")
+async def like_artist_endpoint(artist_id: int, user: User = Depends(fastapi_users.current_user()), 
+                              manager: DatabaseManager = Depends(get_db_manager)):
+    await manager.like_artist(user_id=user.id, artist_id=artist_id)
+    return {"success": True}
+
+
+@app.get("/liked_tracks/")
+async def get_liked_tracks(user: User = Depends(fastapi_users.current_user()),
+                            manager: DatabaseManager = Depends(get_db_manager)):
+    liked_tracks = await manager.get_liked_tracks(user.id)
+    if liked_tracks is None:
+        return []
+    return liked_tracks
+
+@app.get("/liked_artists/")
+async def get_liked_artists(user: User = Depends(fastapi_users.current_user()), 
+                            manager: DatabaseManager = Depends(get_db_manager)):
+    liked_artists = await manager.get_liked_artists(user.id)
+    if liked_artists is None:
+        return []
+    return liked_artists
+
+
+@app.delete("/unlike_track/{track_id}")
+async def unlike_track(track_id: str, user: User = Depends(fastapi_users.current_user()), 
+                       manager: DatabaseManager = Depends(get_db_manager)):
+    await manager.unlike_track(user.id, track_id)
+    return {"success": True}
+
+@app.delete("/unlike_artist/{artist_id}")
+async def unlike_artist(artist_id: int, user: User = Depends(fastapi_users.current_user()), 
+                        manager: DatabaseManager = Depends(get_db_manager)):
+    await manager.unlike_artist(user.id, artist_id)
+    return {"success": True}

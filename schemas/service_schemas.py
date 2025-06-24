@@ -41,6 +41,10 @@ class SpotifyTrack(BaseModel):
 class Lyrics(BaseModel):
     text: str | None
 
+class LyricsUpdateRequest(BaseModel):
+    id: str
+    lyrics: str
+
 
 class AllStats(BaseModel):
     genius: GeniusArtist
@@ -66,7 +70,15 @@ class ChatMessage(BaseModel):
     message: str
     history: List[Dict[str,str]] = []
 
-class LyricsUpdateRequest(BaseModel):
-    id: str
-    lyrics: str
 
+class TrackRead(BaseModel):
+    artist_id: int
+    spotify_song_id: str
+    artists: Optional[str]
+    title: str
+    cover_url: Optional[str]
+
+class ArtistRead(BaseModel):
+    genius_id: int
+    name: str
+    cover_url: Optional[str]
