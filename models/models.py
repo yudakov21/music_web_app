@@ -74,3 +74,22 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     is_active: bool = Column(Boolean, default= True, nullable= False)
     is_superuser: bool = Column(Boolean, default= False, nullable= False)
     is_verified: bool = Column(Boolean, default= False, nullable= False)
+
+
+user_liked_artist = Table(
+    'user_liked_artist',
+    metadata,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', Integer, ForeignKey(user.c.id, ondelete="CASCADE"), nullable=False),
+    Column('artist_id', Integer, ForeignKey(artist.c.genius_id, ondelete="CASCADE"), nullable=False),
+    Column('liked_at', DateTime, server_default=func.now())
+)
+
+user_liked_track = Table(
+    'user_liked_track',
+    metadata,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', Integer, ForeignKey(user.c.id, ondelete="CASCADE"), nullable=False),
+    Column('track_id', String, ForeignKey(track.c.spotify_song_id, ondelete="CASCADE"), nullable=False),
+    Column('liked_at', DateTime, server_default=func.now())
+)
