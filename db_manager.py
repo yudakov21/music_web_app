@@ -4,6 +4,7 @@ from typing import List
 from models.models import artist, track, track_details, lyrics, user_liked_artist, user_liked_track
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, update, delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from schemas.service_schemas import SpotifyTrack, SpotifyTrackDetails, TrackRead, ArtistRead
 
 
@@ -27,13 +28,10 @@ class DatabaseManager:
     
 
     async def add_tracks(self, artist_id: int, tracks: list[SpotifyTrack]):
-        track_ids = [track_.spotify_song_id for track_ in tracks]
-
-        query = select(track.c.spotify_song_id).where(track.c.spotify_song_id.in_(track_ids))
-        result = await self.session.execute(query)
-        existing_ids = {row[0] for row in result.fetchall()}
-
-        new_tracks = [
+        if not tracks:
+            return
+        
+        stmt = pg_insert(track).values([
             {
                 "artist_id": artist_id,
                 "spotify_song_id": track_.spotify_song_id,
@@ -42,14 +40,12 @@ class DatabaseManager:
                 "release_date": track_.release_date,
                 "cover_url": track_.cover_url,
                 "preview_url": track_.preview_url
-            }
-            for track_ in tracks if track_.spotify_song_id not in existing_ids
-        ]
+            } for track_ in tracks
+        ])
 
-        if new_tracks:
-            stmt = insert(track)
-            await self.session.execute(stmt, new_tracks)
-            await self.session.commit()
+        do_nothing_stmt = stmt.on_conflict_do_nothing(index_elements=["spotify_song_id"])
+        await self.session.execute(do_nothing_stmt)
+        await self.session.commit()
 
     async def add_track(self, artist_id: int, track: SpotifyTrack):
         stmt = insert(track).values(
