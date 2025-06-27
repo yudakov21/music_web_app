@@ -70,7 +70,7 @@ class ArtistController:
         await self.manager.add_artist(genius_id=all_stats.genius.id, json=json.dumps(data, ensure_ascii=False))
         await self.manager.add_tracks(artist_id=all_stats.genius.id, tracks=spotify_tracks)
 
-        return all_stats.model_dump_json()
+        return all_stats
     
 
 class TrackController:

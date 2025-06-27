@@ -84,7 +84,7 @@ async def get_artist_search(search: Search, artist_controller: ArtistController 
         print(f"Time: {end_time - start_time:.2f} seconds")
     except Exception as e:
         return {"error": str(e)}
-    return JSONResponse(content=artist, media_type="application/json")
+    return artist
 
 @app.post("/track/")
 async def get_track_search(search: SearchSong, track_controller: TrackController = Depends(get_track_controller)):
