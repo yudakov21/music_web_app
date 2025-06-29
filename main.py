@@ -1,22 +1,16 @@
-import config
 import time 
 
 from fastapi import Depends
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from redis.asyncio import Redis
 from user_auth.base_config import fastapi_users, auth_backend
 from services.controller import ArtistController, TrackController, TranslatorController, ChatController
-from services.applications.genius import GeniusAPI, GeniusParser
-from services.applications.spotify import SpotifyAPI
-from services.applications.openai import OpenAIClient
 from schemas.user_schemas import UserCreate, UserRead
 from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage, LyricsUpdateRequest
 from models.models import User
 from db_manager import DatabaseManager
-from database import get_async_session
-from sqlalchemy.ext.asyncio import AsyncSession
+from dependencies import get_artist_controller,get_db_manager, get_track_controller, get_translator_controller, get_chat_controller
 
 
 app = FastAPI(
@@ -43,36 +37,6 @@ app.include_router(
     prefix="/auth",
     tags=["auth"],
 )
-
-
-async def get_db_manager(session: AsyncSession = Depends(get_async_session)):
-    return DatabaseManager(session=session)
-
-async def get_artist_controller(manager: DatabaseManager = Depends(get_db_manager)):
-    genius = GeniusAPI(config.GENIUS_ACCESS)
-    genius_parser = GeniusParser()
-    spotify = SpotifyAPI(config.SPOTIFY_ACCESS, config.SPOTIFY_ID, config.SPOTIFY_SECRET)
-
-    return ArtistController(genius=genius,genius_parser=genius_parser,spotify=spotify,manager=manager)
-
-async def get_track_controller(manager: DatabaseManager = Depends(get_db_manager)):
-    genius = GeniusAPI(config.GENIUS_ACCESS)
-    genius_parser = GeniusParser()
-    spotify = SpotifyAPI(config.SPOTIFY_ACCESS, config.SPOTIFY_ID, config.SPOTIFY_SECRET)
-
-    return TrackController(genius=genius,genius_parser=genius_parser,spotify=spotify,manager=manager)
-
-async def get_redis_client() -> Redis:
-    redis_client = Redis(host=config.REDIS_HOST, port=config.REDIS_HOST, encoding="utf-8", decode_responses=True)
-    return redis_client
-
-async def get_translator_controller(redis_client: Redis = Depends(get_redis_client)):
-    openai_client = OpenAIClient(config.OPENAI_API_TOKEN)
-    return TranslatorController(openai_client=openai_client, redis_client=redis_client)
-
-async def get_chat_controller():
-    openai_client = OpenAIClient(config.OPENAI_API_TOKEN)
-    return ChatController(openai_client=openai_client)
 
 
 @app.post("/")
