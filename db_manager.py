@@ -1,5 +1,6 @@
 import json
 
+from logger import logger
 from typing import List
 from models.models import artist, track, track_details, lyrics, user_liked_artist, user_liked_track
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -164,7 +165,7 @@ class DatabaseManager:
             return tracks
 
         except Exception as e:
-            print(f"Помилка: {e}")
+            logger.exception(f"Error: {e}")
             return []
         
 
@@ -210,11 +211,11 @@ class DatabaseManager:
                     )
                     artists.append(artist_obj)
                 except Exception as e:
-                    print(f"Помилка: {e}")
+                    logger.exception(f"Error: {e}")
                     continue
 
             return artists
 
         except Exception as e:
-            print(f"Помилка: {e}")
+            logger.exception(f"Error: {e}")
             return []

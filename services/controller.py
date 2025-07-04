@@ -1,6 +1,7 @@
 import json
 import asyncio 
 
+from logger import logger
 from datetime import datetime, timedelta
 from redis import Redis
 from hashlib import sha256
@@ -8,7 +9,7 @@ from fastapi import HTTPException
 from services.applications.openai import OpenAIClient
 from services.applications.spotify import SpotifyAPI
 from services.applications.genius import GeniusAPI, GeniusParser
-from schemas.service_schemas import AllStats, SpotifyTrack
+from schemas.service_schemas import AllStats, SpotifyTrack, GeniusArtist, SpotifyArtist
 from db_manager import DatabaseManager
 
 
@@ -19,9 +20,6 @@ class ArtistController:
         self.spotify = spotify
         self.genius_parser = genius_parser
         self.manager = manager
-
-    def is_day_delta(self, date_query: datetime, date_db_query: datetime) -> bool:
-        return abs(date_query - date_db_query) <= timedelta(days=1)
 
     def process_json(self, json_str: str) -> str:
         return json_str.replace('header_photo', 'header_image_url').replace('avatar_photo', 'image_url', 1)
@@ -34,16 +32,17 @@ class ArtistController:
         tracks = await self.manager.get_tracks(genius_artist_id)
 
         if artist_ and tracks:
-            artist_data = json.loads(self.process_json(artist_.json))
+            genius_artist_data = json.loads(self.process_json(artist_.json))
+            spotify_artist_data = json.loads(artist_.json)
             spotify_tracks= [SpotifyTrack(**track._asdict()).model_dump() for track in tracks]
         
             all_stats = AllStats(
-                genius=artist_data["genius"],
-                spotify=artist_data["spotify"],
+                genius=GeniusArtist(**genius_artist_data["genius"]),
+                spotify=SpotifyArtist(**spotify_artist_data["spotify"]),
                 spotify_tracks=spotify_tracks,
                 most_popular_words=None
             )
-            return all_stats.model_dump_json()
+            return all_stats
         
         spotify_id = self.spotify.get_artist_id(artist_name)
         spotify_artist_id = await asyncio.create_task(spotify_id)       
@@ -107,7 +106,6 @@ class TrackController:
             raise Exception(f"Failed to retrieve track details for ID {spotify_song_id}")
 
         track_url = await self.genius.get_artist_song(artists, title)
-        print(track_url)
 
         lyrics = await self.genius_parser.get_songs_text(track_url) 
 
@@ -156,7 +154,7 @@ class TranslatorController:
             try:
                 return json.loads(cache_data)
             except json.JSONDecodeError as e:
-                print(f"Error decoding cached data: {e}")
+                logger.exception(f"Error decoding cached data: {e}")
                 # Delete corrupted data from the cache
                 await self.redis_client.delete(cache_key)
 
