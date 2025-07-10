@@ -1,13 +1,14 @@
 import pytest
 import json
 
+from logger import logger
 from unittest.mock import MagicMock
 from services.controller import ArtistController
 from schemas.service_schemas import AllStats, GeniusArtist, SpotifyArtist, SpotifyTrack, SpotifyTrackDetails
 
 
 @pytest.mark.asyncio
-async def test_get_artist(mock_db, mock_genius, mock_parser, mock_spotify):
+async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify):
     genius_id = 1234
     artist_json = {
         "genius": {
@@ -52,14 +53,7 @@ async def test_get_artist(mock_db, mock_genius, mock_parser, mock_spotify):
         })
     ]
 
-    controller = ArtistController(
-        genius=mock_genius,
-        genius_parser=mock_parser,
-        spotify=mock_spotify,
-        manager=mock_db
-    )
-
-    result = await controller.get_artist("Test Artist")
+    result = await artist_controller.get_artist("Test Artist")
 
     res_dict = result.model_dump() # to dict
 
@@ -77,7 +71,7 @@ async def test_get_artist(mock_db, mock_genius, mock_parser, mock_spotify):
 
 
 @pytest.mark.asyncio
-async def test_get_artist_from_api_if_not_in_db(mock_db, mock_genius, mock_parser, mock_spotify):
+async def test_get_artist_from_api_if_not_in_db(artist_controller, mock_db, mock_genius, mock_spotify):
     genius_id = 1234
     mock_genius.get_artist_id.return_value = genius_id
     mock_db.get_artist.return_value = None
@@ -105,14 +99,7 @@ async def test_get_artist_from_api_if_not_in_db(mock_db, mock_genius, mock_parse
 
     mock_spotify.get_artist_top_tracks.return_value = []
 
-    controller = ArtistController(
-        genius=mock_genius,
-        genius_parser=mock_parser,
-        spotify=mock_spotify,
-        manager=mock_db
-    )
-
-    result = await controller.get_artist("Test Artist")
+    result = await artist_controller.get_artist("Test Artist")
  
     assert result.spotify.name == "Test Artist"
 
@@ -130,3 +117,95 @@ async def test_get_artist_from_api_if_not_in_db(mock_db, mock_genius, mock_parse
     mock_db.get_tracks.assert_awaited_once()
 
 
+@pytest.mark.asyncio 
+async def test_get_track_data_without_saving(track_controller, mock_spotify, mock_genius, mock_parser):
+    mock_spotify.get_track_id.return_value = "id123"
+    mock_track = MagicMock()
+    mock_track.model_dump_json.return_value = '{"title": "Test Song"}'
+    mock_spotify.get_current_track.return_value = mock_track
+    mock_spotify.get_track_details.return_value = SpotifyTrackDetails(
+        key="C#m",
+        bpm="120",
+        camelot="12A",
+        popularity="85",
+        energy="85",
+        danceability="85",
+        happiness="85"
+    )
+    mock_genius.get_artist_song.return_value = "http://genius.com/test-song"
+    mock_parser.get_songs_text.return_value = "These are the lyrics"
+
+    result = await track_controller.get_one_track("Test Artist", "Test Track")
+    
+    assert "track" in result
+    assert "details" in result
+    assert "lyrics" in result 
+    assert result["lyrics"] == "These are the lyrics"
+
+    logger.info(result)
+
+    mock_spotify.get_current_track.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_track_with_data_from_db(track_controller, mock_spotify, mock_genius, mock_parser, mock_db):
+    # check data in db
+    mock_track = MagicMock() 
+    mock_track._asdict.return_value = {
+        "spotify_song_id": "id123",
+        "artists": "Test Artist",
+        "title": "Test Song"
+    }
+    mock_db.get_one_track.return_value = mock_track
+    
+    mock_track_details = MagicMock()
+    mock_track_details._asdict.return_value = {"bpm": 122}
+    mock_db.get_track_details.return_value = mock_track_details
+    
+    mock_lyrics = MagicMock()
+    mock_lyrics._asdict.return_value = {"lyrics": "These are the lyrics"}
+    mock_db.get_lyrics.return_value = mock_lyrics
+
+    result = await track_controller.get_track_with_data("id123")
+
+    assert "track" in result
+    assert result["track"]["artists"] == "Test Artist"
+
+    logger.info(result)
+
+    assert "details" in result
+    assert "lyrics" in result 
+    
+    mock_db.get_one_track.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_track_with_data_from_api(track_controller, mock_spotify, mock_genius, mock_parser, mock_db):
+
+    mock_track = MagicMock() 
+    mock_track._asdict.return_value = {
+        "spotify_song_id": "id123",
+        "artists": "Test Artist",
+        "title": "Test Song"
+    }
+    mock_db.get_one_track.return_value = mock_track
+   
+    mock_db.get_track_details.return_value = None
+    mock_db.get_lyrics.return_value = None
+
+    mock_spotify.get_track_details.return_value = {"bpm": 122}
+    mock_genius.get_artist_song.return_value = "http://genius.com/song"
+    mock_parser.get_songs_text.return_value = "Lyrics from API"
+
+    result = await track_controller.get_track_with_data("id123")
+
+    logger.info(result)
+
+    assert result["lyrics"] == "Lyrics from API"
+
+    mock_spotify.get_track_details.assert_awaited_once()
+    mock_genius.get_artist_song.assert_awaited_once()
+    mock_parser.get_songs_text.assert_awaited_once()
+
+    mock_db.add_track_details.assert_awaited_once()
+    mock_db.add_lyrics.assert_awaited_once()
