@@ -1,5 +1,6 @@
 import time 
 
+from logger import logger
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +11,7 @@ from schemas.user_schemas import UserCreate, UserRead
 from schemas.service_schemas import Search, SearchSong, Translation, ChatMessage, LyricsUpdateRequest
 from models.models import User
 from db_manager import DatabaseManager
-from dependencies import get_artist_controller,get_db_manager, get_track_controller, get_translator_controller, get_chat_controller
+from dependencies import get_artist_controller, get_db_manager, get_track_controller, get_translator_controller, get_chat_controller
 
 
 app = FastAPI(
@@ -45,7 +46,7 @@ async def get_artist_search(search: Search, artist_controller: ArtistController 
     try:
         artist = await artist_controller.get_artist(search.artist_name)
         end_time = time.perf_counter() 
-        print(f"Time: {end_time - start_time:.2f} seconds")
+        logger.info(f"Time: {end_time - start_time:.2f} seconds")
     except Exception as e:
         return {"error": str(e)}
     return artist
@@ -56,7 +57,7 @@ async def get_track_search(search: SearchSong, track_controller: TrackController
     try:
         track = await track_controller.get_track_data_without_saving(search.artist_name, search.title)
         end_time = time.perf_counter()  
-        print(f"Time: {end_time - start_time:.2f} seconds")
+        logger.info(f"Time: {end_time - start_time:.2f} seconds")
     except Exception as e:
         return {"error": str(e)}
     return track
@@ -67,7 +68,7 @@ async def get_track_with_data(spotify_song_id: str, track_controller: TrackContr
     try:
         data = await track_controller.get_track_with_data(spotify_song_id)
         end_time = time.perf_counter()
-        print(f"Time: {end_time - start_time:.2f} seconds")
+        logger.info(f"Time: {end_time - start_time:.2f} seconds")
     except Exception as e:
         return {"error": str(e)}
     return data

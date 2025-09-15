@@ -3,8 +3,7 @@ import json
 
 from logger import logger
 from unittest.mock import MagicMock
-from services.controller import ArtistController
-from schemas.service_schemas import AllStats, GeniusArtist, SpotifyArtist, SpotifyTrack, SpotifyTrackDetails
+from schemas.service_schemas import GeniusArtist, SpotifyArtist, SpotifyTrackDetails
 
 
 @pytest.mark.asyncio
