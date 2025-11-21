@@ -5,6 +5,7 @@ import time
 import random
 import cloudscraper
 
+from logger import logger
 from bs4 import BeautifulSoup
 from schemas.service_schemas import SpotifyArtist, SpotifyTrack, SpotifyTrackDetails
 
@@ -167,7 +168,6 @@ class SpotifyAPI:
         url = f"https://tunebat.com/Info/-/{track_id}"
 
         try: 
-            print(f"Fetching URL: {url}")
             response = scraper.get(url=url, headers=headers)
             
             if response.status_code == 200:
@@ -194,8 +194,6 @@ class SpotifyAPI:
                 time.sleep(random.uniform(1, 2))
                 return track_details
             else:
-                print(f"[Tunebat] status={response.status_code} url={url}")
+                logger.info(f"[Tunebat] status={response.status_code} url={url}")
         except Exception as e:
-            print(f"An error occurred at the URL {url}: {e}")
-        finally:
-            print("Data collection is complete.")
+            logger.exception(f"An error occurred at the URL {url}: {e}")
