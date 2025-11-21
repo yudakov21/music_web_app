@@ -41,7 +41,7 @@ app.include_router(
 
 
 @app.post("/")
-async def get_artist_search(search: Search, artist_controller: ArtistController = Depends(get_artist_controller)):
+async def search_artist(search: Search, artist_controller: ArtistController = Depends(get_artist_controller)):
     start_time = time.perf_counter()  
     try:
         artist = await artist_controller.get_artist(search.artist_name)
@@ -52,7 +52,7 @@ async def get_artist_search(search: Search, artist_controller: ArtistController 
     return artist
 
 @app.post("/track/")
-async def get_track_search(search: SearchSong, track_controller: TrackController = Depends(get_track_controller)):
+async def search_track(search: SearchSong, track_controller: TrackController = Depends(get_track_controller)):
     start_time = time.perf_counter() 
     try:
         track = await track_controller.get_track_data_without_saving(search.artist_name, search.title)
@@ -63,7 +63,7 @@ async def get_track_search(search: SearchSong, track_controller: TrackController
     return track
 
 @app.get("/{spotify_song_id}")
-async def get_track_with_data(spotify_song_id: str, track_controller: TrackController = Depends(get_track_controller)):
+async def get_track_data(spotify_song_id: str, track_controller: TrackController = Depends(get_track_controller)):
     start_time = time.perf_counter()
     try:
         data = await track_controller.get_track_with_data(spotify_song_id)
@@ -75,10 +75,10 @@ async def get_track_with_data(spotify_song_id: str, track_controller: TrackContr
 
 
 @app.post("/translation/")
-async def get_translation(translation: Translation,
+async def generate_translation(translation: Translation,
                     translator_controller: TranslatorController = Depends(get_translator_controller)):
     try:
-        data = await translator_controller.get_text_translation(translation.text, translation.language, translation.level)
+        data = await translator_controller.generate_text_translation(translation.text, translation.language, translation.level)
     except Exception as e:
         return {"error": str(e)}
     return data

@@ -145,7 +145,7 @@ class TranslatorController:
         self.openai_client = openai_client
         self.redis_client = redis_client
         
-    async def get_text_translation(self, text: str, language: str, level: str):
+    async def generate_text_translation(self, text: str, language: str, level: str):
         text_hash = sha256(text.strip().lower().encode()).hexdigest()
         cache_key = f"result:{text_hash}:{language}:{level}"
 
