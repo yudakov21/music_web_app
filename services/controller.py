@@ -15,18 +15,27 @@ from db_manager import DatabaseManager
 
 class ArtistController:
     def __init__(self, genius: GeniusAPI, genius_parser: GeniusParser, spotify: SpotifyAPI,
-                manager: DatabaseManager) -> None:
+                manager: DatabaseManager, redis_client: Redis) -> None:
         self.genius = genius
         self.spotify = spotify
         self.genius_parser = genius_parser
         self.manager = manager
+        self.redis_client = redis_client
 
     def process_json(self, json_str: str) -> str:
         return json_str.replace('header_photo', 'header_image_url').replace('avatar_photo', 'image_url', 1)
 
     async def get_artist(self, artist_name: str) -> AllStats:
-        genius_id = self.genius.get_artist_id(artist_name)
-        genius_artist_id = await asyncio.create_task(genius_id)
+        key = artist_name.lower().strip()
+
+        cache_data = await self.redis_client.get(key)
+        
+        if cache_data:
+            genius_artist_id = int(cache_data)
+        else:
+            genius_artist_id = await self.genius.get_artist_id(artist_name)
+
+            await self.redis_client.set(key, genius_artist_id, 3600)
         
         artist_ = await self.manager.get_artist(genius_artist_id)
         tracks = await self.manager.get_tracks(genius_artist_id)
@@ -44,8 +53,7 @@ class ArtistController:
             )
             return all_stats
         
-        spotify_id = self.spotify.get_artist_id(artist_name)
-        spotify_artist_id = await asyncio.create_task(spotify_id)       
+        spotify_artist_id = await self.spotify.get_artist_id(artist_name)   
 
         spotify_artist = await self.spotify.get_artist(spotify_artist_id)
         genius_artist = await self.genius.get_artist(genius_artist_id)
