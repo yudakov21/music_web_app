@@ -91,17 +91,6 @@ class GeniusAPI:
 
 
 class GeniusParser:
-    async def get_track_links(self, artist_page_url: str)-> list[str]:
-        async with aiohttp.ClientSession() as session:
-            links = []
-            async with session.get(artist_page_url) as response:
-                html = await response.text()
-        soup = BeautifulSoup(html, 'lxml')
-        for track in soup.find_all(class_="mini_card_grid-song"):
-            link = track.find(class_="mini_card", href=True)
-            links.append(link.get('href'))
-        return links
-
     async def get_songs_text(self, track_url: str)-> list[str]:
         async with aiohttp.ClientSession() as session:
             async with session.get(track_url) as response:
