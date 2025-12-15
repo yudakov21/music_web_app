@@ -19,14 +19,19 @@ def mock_spotify():
 def mock_db():
     return AsyncMock()
 
+@pytest.fixture
+def mock_redis():
+    return AsyncMock()
+
 
 @pytest.fixture
-def artist_controller(mock_genius, mock_parser, mock_spotify, mock_db):
+def artist_controller(mock_genius, mock_parser, mock_spotify, mock_db, mock_redis):
     return ArtistController(
         genius=mock_genius,
         genius_parser=mock_parser,
         spotify=mock_spotify,
-        manager=mock_db
+        manager=mock_db,
+        redis_client=mock_redis
     )
 
 @pytest.fixture

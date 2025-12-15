@@ -7,7 +7,7 @@ from schemas.service_schemas import GeniusArtist, SpotifyArtist, SpotifyTrackDet
 
 
 @pytest.mark.asyncio
-async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify):
+async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify, mock_redis):
     genius_id = 1234
     artist_json = {
         "genius": {
@@ -30,6 +30,7 @@ async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify)
         }
     }
 
+    mock_redis.get.return_value = None
 
     mock_genius.get_artist_id.return_value = genius_id
     mock_db.get_artist.return_value = MagicMock(json=json.dumps(artist_json))
@@ -54,7 +55,7 @@ async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify)
 
     result = await artist_controller.get_artist("Test Artist")
 
-    res_dict = result.model_dump() # to dict
+    res_dict = result.model_dump() 
 
     assert "genius" in res_dict
     assert "spotify" in res_dict
@@ -62,6 +63,10 @@ async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify)
 
     # Checks that the method was actually called once
     mock_genius.get_artist_id.assert_awaited_once()
+    mock_redis.set.assert_awaited_once_with(
+        "test artist", genius_id, 3600
+    )
+
     mock_db.get_artist.assert_awaited_once()
     mock_db.get_tracks.assert_awaited_once()
         
@@ -70,8 +75,11 @@ async def test_get_artist(artist_controller, mock_db, mock_genius, mock_spotify)
 
 
 @pytest.mark.asyncio
-async def test_get_artist_from_api_if_not_in_db(artist_controller, mock_db, mock_genius, mock_spotify):
+async def test_get_artist_from_api_if_not_in_db(artist_controller, mock_db, mock_genius, mock_spotify, mock_redis):
     genius_id = 1234
+
+    mock_redis.get.return_value = None
+
     mock_genius.get_artist_id.return_value = genius_id
     mock_db.get_artist.return_value = None
     mock_db.get_tracks.return_value = []
@@ -104,6 +112,10 @@ async def test_get_artist_from_api_if_not_in_db(artist_controller, mock_db, mock
 
     # Verifying that the APIs were called
     mock_genius.get_artist.assert_awaited_once()
+    mock_redis.set.assert_awaited_once_with(
+        "test artist", genius_id, 3600
+    )
+
     mock_spotify.get_artist.assert_awaited_once()
     mock_spotify.get_artist_top_tracks.assert_awaited_once()
 
@@ -111,7 +123,69 @@ async def test_get_artist_from_api_if_not_in_db(artist_controller, mock_db, mock
     mock_db.add_artist.assert_awaited_once()
     mock_db.add_tracks.assert_awaited_once()
 
-    # Verify that the old data was not actually used
+    # Let's make sure that the data was obtained from the API, not from the database
+    mock_db.get_artist.assert_awaited_once()
+    mock_db.get_tracks.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_artist_id_with_redis(artist_controller, mock_db, mock_genius, mock_redis):
+    genius_id = 1234
+    artist_json = {
+        "genius": {
+            "id": genius_id,
+            "name": "Test Artist",
+            "alternate_names": [],
+            "instagram_name": None,
+            "twitter_name": None,
+            "followers_count": 1000,
+            "header_image_url": "http://image.com/header.jpg",
+            "image_url": "http://image.com/avatar.jpg",
+            "url": "http://genius.com/artist"
+        },
+        "spotify": {
+            "name": "Test Artist",
+            "avatar_photo": "http://spotify.com/photo.jpg",
+            "popularity": 80,
+            "followers_count": 500000,
+            "genres": ["pop"]
+        }
+    }
+
+    mock_redis.get.return_value = str(genius_id)
+
+    mock_db.get_artist.return_value = MagicMock(json=json.dumps(artist_json))
+    mock_db.get_tracks.return_value = [
+        MagicMock(_asdict=lambda: {
+            "spotify_song_id": "id123",
+            "artists": "Test Artist",
+            "title": "Test Song",
+            "release_date": "2024-01-01",
+            "cover_url": None,
+            "preview_url": None
+        }),
+        MagicMock(_asdict=lambda: {
+            "spotify_song_id": "id456",
+            "artists": "Test Artist",
+            "title": "Track Two",
+            "release_date": "2023-01-01",
+            "cover_url": "http://url2.jpg",
+            "preview_url": None
+        })
+    ]
+
+    result = await artist_controller.get_artist("Test Artist")
+
+    res_dict = result.model_dump() 
+
+    assert "genius" in res_dict
+    assert "spotify" in res_dict
+    assert "spotify_tracks" in res_dict
+
+    # Checks that the method was actually called once
+    mock_genius.get_artist_id.assert_awaited_once()
+    mock_redis.get.assert_awaited_once()
+
     mock_db.get_artist.assert_awaited_once()
     mock_db.get_tracks.assert_awaited_once()
 
@@ -147,8 +221,7 @@ async def test_get_track_data_without_saving(track_controller, mock_spotify, moc
 
 
 @pytest.mark.asyncio
-async def test_get_track_with_data_from_db(track_controller, mock_spotify, mock_genius, mock_parser, mock_db):
-    # check data in db
+async def test_get_track_with_data_from_db(track_controller, mock_db):
     mock_track = MagicMock() 
     mock_track._asdict.return_value = {
         "spotify_song_id": "id123",
@@ -180,7 +253,6 @@ async def test_get_track_with_data_from_db(track_controller, mock_spotify, mock_
 
 @pytest.mark.asyncio
 async def test_get_track_with_data_from_api(track_controller, mock_spotify, mock_genius, mock_parser, mock_db):
-
     mock_track = MagicMock() 
     mock_track._asdict.return_value = {
         "spotify_song_id": "id123",
