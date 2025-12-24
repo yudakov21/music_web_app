@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import date
 from typing import List, Dict, Optional
 
+
 class GeniusArtist(BaseModel):
     id: int
     name: str
@@ -21,6 +22,16 @@ class SpotifyArtist(BaseModel):
     followers_count: int
     genres: list[str]
 
+
+class SpotifyTrack(BaseModel):
+    spotify_song_id: str | None
+    artists: str
+    title: str 
+    release_date: date
+    cover_url: str | None
+    preview_url: str | None
+
+
 class SpotifyTrackDetails(BaseModel):
     key: str
     bpm: str
@@ -30,16 +41,10 @@ class SpotifyTrackDetails(BaseModel):
     danceability: str
     happiness: str
 
-class SpotifyTrack(BaseModel):
-    spotify_song_id: str | None
-    artists: str
-    title: str 
-    release_date: date
-    cover_url: str 
-    preview_url: str | None
 
 class Lyrics(BaseModel):
     text: str | None
+
 
 class LyricsUpdateRequest(BaseModel):
     id: str
@@ -56,6 +61,7 @@ class AllStats(BaseModel):
 class Search(BaseModel):
     artist_name: str | None
 
+
 class SearchSong(BaseModel):
     artist_name: str | None
     title: str | None
@@ -66,9 +72,10 @@ class Translation(BaseModel):
     level: str
     language: str
 
+
 class ChatMessage(BaseModel):
     message: str
-    history: List[Dict[str,str]] = []
+    history: List[Dict[str, str]] = []
 
 
 class TrackRead(BaseModel):
@@ -77,6 +84,7 @@ class TrackRead(BaseModel):
     artists: Optional[str]
     title: str
     cover_url: Optional[str]
+
 
 class ArtistRead(BaseModel):
     genius_id: int

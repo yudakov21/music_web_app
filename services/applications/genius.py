@@ -12,29 +12,30 @@ class GeniusAPI:
         self.request_params = {
             "access_token": self._token
         }
-    
+
     feature_symbols = [",", "&"]
+
     def featured_artist(self, artist_name: str) -> bool:
         for feature_symbol in GeniusAPI.feature_symbols:
             if feature_symbol in artist_name:
                 return True
         return False
 
-    async def get_artist_id(self, artist_name:str) -> int:
+    async def get_artist_id(self, artist_name: str) -> int:
         async with aiohttp.ClientSession() as session:
             url = "http://api.genius.com/search"
             request_params = self.request_params
             request_params['q'] = artist_name
             async with session.get(url=url, params=request_params) as response:
                 if response.status != 200:
-                    raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
+                    raise HTTPException(
+                        status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
         hits = data.get("response", {}).get("hits", [])
-        target_name = artist_name.strip().lower()
 
         def is_valid_artist(name: str) -> bool:
-            return name.strip().lower() == target_name and not self.featured_artist(name)
+            return name.strip().lower() == artist_name and not self.featured_artist(name)
 
         # first search for type == "artist"
         for hit in hits:
@@ -55,14 +56,16 @@ class GeniusAPI:
                 if is_valid_artist(name):
                     return primary_artist["id"]
 
-        raise Exception("The artist name is incorrect or there is no such artist on Genius :(")
-            
-    async def get_artist(self, artist_id: int) -> GeniusArtist:       
+        raise Exception(
+            "The artist name is incorrect or there is no such artist on Genius :(")
+
+    async def get_artist(self, artist_id: int) -> GeniusArtist:
         async with aiohttp.ClientSession() as session:
             url = f"http://api.genius.com/artists/{artist_id}"
             async with session.get(url=url, params=self.request_params) as response:
                 if response.status != 200:
-                    raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
+                    raise HTTPException(
+                        status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
         artist_dict: dict = data["response"]["artist"]
@@ -70,7 +73,7 @@ class GeniusAPI:
             raise Exception("Artist has default avatar")
         artist = GeniusArtist(**artist_dict)
         return artist
-        
+
     async def get_artist_song(self, artist_name: str, track_title: str):
         async with aiohttp.ClientSession() as session:
             url = "http://api.genius.com/search"
@@ -79,11 +82,12 @@ class GeniusAPI:
             request_params['q'] = query
             async with session.get(url=url, params=request_params) as response:
                 if response.status != 200:
-                    raise HTTPException(status_code=response.status, detail="Failed to fetch Genius data")
+                    raise HTTPException(
+                        status_code=response.status, detail="Failed to fetch Genius data")
                 data = await response.json()
 
-        hits = data.get("response", {}).get("hits",[])
-        
+        hits = data.get("response", {}).get("hits", [])
+
         for hit in hits:
             if hit["type"] == "song":
                 return hit["result"]["url"]
@@ -91,20 +95,22 @@ class GeniusAPI:
 
 
 class GeniusParser:
-    async def get_songs_text(self, track_url: str)-> list[str]:
+    async def get_songs_text(self, track_url: str) -> list[str]:
         async with aiohttp.ClientSession() as session:
             async with session.get(track_url) as response:
                 html = await response.text()
-        soup = BeautifulSoup(html, 'lxml') 
-        lyrics_div = soup.find_all('div', attrs={"class": re.compile(r"^Lyrics__Container-sc-")}) # Lyrics-sc-7c7d0940-1 gVRfzh 
-        
+        soup = BeautifulSoup(html, 'lxml')
+        lyrics_div = soup.find_all('div', attrs={"class": re.compile(
+            r"^Lyrics__Container-sc-")})  # Lyrics-sc-7c7d0940-1 gVRfzh
+
         if not lyrics_div:
             return None
-        
-        full_text = "\n".join(div.get_text(separator="\n").strip() for div in lyrics_div)
 
-        start_keywords = ["[Intro", "[Verse", "[Chorus", "[Bridge", "[Outro", "[Refrain", 
-                            "[Post-Chorus", "[Pre-Chorus", "[Breakdown", "[Interlude:", "[Skit:"]
+        full_text = "\n".join(div.get_text(separator="\n").strip()
+                              for div in lyrics_div)
+
+        start_keywords = ["[Intro", "[Verse", "[Chorus", "[Bridge", "[Outro", "[Refrain",
+                          "[Post-Chorus", "[Pre-Chorus", "[Breakdown", "[Interlude:", "[Skit:"]
         for keyword in start_keywords:
             idx = full_text.find(keyword)
             if idx != -1:
@@ -112,5 +118,3 @@ class GeniusParser:
                 break
 
         return full_text
-
-

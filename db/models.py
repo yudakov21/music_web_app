@@ -34,7 +34,7 @@ track_details = Table(
     'track_details',
     metadata,
     Column('id', Integer, primary_key=True),
-    Column('track_id', Integer, ForeignKey(track.c.id), nullable=False),
+    Column('spotify_song_id', String, ForeignKey(track.c.spotify_song_id), nullable=False),
     Column('key', String, nullable=True),
     Column('bpm', String, nullable=True),
     Column('camelot', String, nullable=True),
@@ -48,7 +48,7 @@ lyrics = Table(
     'lyrics',
     metadata,
     Column('id', Integer, primary_key=True),
-    Column('track_id', Integer, ForeignKey(track.c.id), nullable=False),
+    Column('spotify_song_id', String, ForeignKey(track.c.spotify_song_id), nullable=False),
     Column('text', Text, nullable=True)
 )
 

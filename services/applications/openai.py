@@ -1,4 +1,5 @@
-import openai 
+import openai
+
 
 class OpenAIClient:
     def __init__(self, openai_key: str):
@@ -19,9 +20,10 @@ class OpenAIClient:
             response = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are an experienced language teacher."},
+                    {"role": "system",
+                        "content": "You are an experienced language teacher."},
                     {"role": "user", "content": prompt}
-                ] 
+                ]
             )
             reply = response.choices[0].message.content
             return {
@@ -29,12 +31,13 @@ class OpenAIClient:
             }
         except openai.OpenAIError as e:
             raise RuntimeError(f"Error OpenAI API: {str(e)}")
-        
+
     def chat(self, message: str, history: list):
         if history is None:
             history = []
 
-        messages = [{"role": "system", "content": "You are a helpful assistant and an experienced language teacher."}]
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant and an experienced language teacher."}]
         messages += history
         messages.append({"role": "user", "content": message})
 

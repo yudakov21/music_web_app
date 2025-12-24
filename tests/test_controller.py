@@ -1,7 +1,7 @@
 import pytest
 import json
 
-from logger import logger
+from core.logger import logger
 from unittest.mock import MagicMock
 from schemas.service_schemas import GeniusArtist, SpotifyArtist, SpotifyTrackDetails
 
