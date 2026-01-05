@@ -1,24 +1,25 @@
 import os
 from dotenv import load_dotenv
+from utils.env import load_env_var
 
 
 load_dotenv()
 
 
-DB_NAME = os.environ.get("DB_NAME")
-DB_HOST = os.environ.get("DB_HOST")
-DB_PASS = os.environ.get("DB_PASS")
-DB_PORT = os.environ.get("DB_PORT")
-DB_USER = os.environ.get("DB_USER")
+DB_NAME = load_env_var("DB_NAME")
+DB_HOST = load_env_var("DB_HOST")
+DB_PASS = load_env_var("DB_PASS")
+DB_PORT = load_env_var("DB_PORT")
+DB_USER = load_env_var("DB_USER")
 
-REDIS_HOST = os.environ.get("REDIS_HOST")
-REDIS_PORT = os.environ.get("REDIS_PORT")
+REDIS_HOST = load_env_var("REDIS_HOST")
+REDIS_PORT = load_env_var("REDIS_PORT")
 
-SECRET = os.environ.get("SECRET")
+SECRET = load_env_var("SECRET")
 
-GENIUS_ACCESS = os.environ.get("GENIUS_ACCESS")
-SPOTIFY_ACCESS = os.environ.get("SPOTIFY_ACCESS")
-SPOTIFY_ID = os.environ.get("SPOTIFY_ID")
-SPOTIFY_SECRET = os.environ.get("SPOTIFY_SECRET")
+GENIUS_ACCESS = load_env_var("GENIUS_ACCESS")
+SPOTIFY_ACCESS = load_env_var("SPOTIFY_ACCESS")
+SPOTIFY_ID = load_env_var("SPOTIFY_ID")
+SPOTIFY_SECRET = load_env_var("SPOTIFY_SECRET")
 
-OPENAI_API_TOKEN = os.environ.get("OPENAI_API_TOKEN")
+OPENAI_API_TOKEN = load_env_var("OPENAI_API_TOKEN")
